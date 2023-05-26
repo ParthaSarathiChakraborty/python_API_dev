@@ -1,16 +1,27 @@
 from typing import Optional
 import time
-from fastapi import FastAPI, status, HTTPException, Response
+from fastapi import FastAPI, status, HTTPException, Response, Depends
 from pydantic import BaseModel
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from sqlalchemy.orm import Session
+
+# from other file import statements
+from .database import engine, get_db
+from app import models
+from . import models
+
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
+
 
 class Post(BaseModel):
     title: str
     content: str
     published: bool = True
+
 
 # This is the database connection.
 while True:
@@ -34,6 +45,12 @@ while True:
 def read_root():
     return {"Hello": "Partha_Sarathi_Chakraborty"}
 
+# Create a database table.
+@app.get("/sqlalchemy")
+def testing_post(db: Session = Depends(get_db)):
+    return{"status":"success"}
+
+
 # This block gets all the posts from the Postgre database.
 @app.get("/post")
 def user_post():
@@ -41,8 +58,9 @@ def user_post():
     posts = cursor.fetchall()
     return {"Post": posts}
 
-# This block creates a new post.
 
+# This block creates a new post.
+# payload in postman
 @app.post("/post", status_code=status.HTTP_201_CREATED)
 def create_post(new_post: Post):
     cursor.execute(
@@ -53,12 +71,14 @@ def create_post(new_post: Post):
     conn.commit()
     return {"data": post01}
 
+
+
 # This block retrieves post with given 'id'.
 
 @app.post("/posts/{id}")
 def get_post(id: int):
     try:
-        #The comma in this context is used to create a tuple with a single element (id,). 
+        #The , in this context is used to create a tuple with a single element (id,). 
         # It's a common syntax in Python to create a tuple with a single element. 
         cursor.execute("SELECT * FROM product WHERE id = %s", (id,))
         # Fetch only one value.
@@ -74,6 +94,8 @@ def get_post(id: int):
     except Exception as e:
         conn.rollback()  # Rollback the transaction in case of an error
         raise e  # Re-raise the exception to be handled by FastAPI
+
+
 
 # In the context of database transactions, a rollback is an operation that undoes or cancels the changes made within a transaction. It restores the database to its previous state before the transaction began.
 
@@ -104,20 +126,18 @@ def delete_post(id: int):
 def update_post(id: int, post: Post):
     cursor.execute("SELECT * FROM product WHERE id = %s", (id,))
     existing_post = cursor.fetchone()
-
     if existing_post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with id: {id} does not exist")
+
+    if not post.title:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Title is required")
+
+    if not post.content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Content is required")
 
     cursor.execute(
         "UPDATE product SET title = %s, content = %s, published = %s WHERE id = %s",
         (post.title, post.content, post.published, id)
     )
     conn.commit()
-
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-
-
-
-
