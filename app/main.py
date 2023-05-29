@@ -1,3 +1,5 @@
+from multiprocessing import synchronize
+from turtle import title
 from typing import Optional
 import time
 from fastapi import FastAPI, status, HTTPException, Response, Depends
@@ -5,25 +7,17 @@ from pydantic import BaseModel
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from sqlalchemy.orm import Session
-
+from .schema import PostCreate
 # from other file import statements
 from .database import engine, get_db
-from app import models
 from . import models
 
 models.Base.metadata.create_all(bind=engine)
 
+# This is the fastAPI instance.
 app = FastAPI()
 
-
-
-class Post(BaseModel):
-    title: str
-    content: str
-    published: bool = True
-
-
-# This is the database connection.
+# This is the database connection. Uses try-except block.
 while True:
     try:
         conn = psycopg2.connect(
@@ -39,18 +33,25 @@ while True:
     except Exception as error:
         print("Connection Failed.")
         print("Error: ", error)
+        # Checks for connection for every 4 sec.
         time.sleep(4)
 
 @app.get("/")
 def read_root():
     return {"Hello": "Partha_Sarathi_Chakraborty"}
 
-# Create a database table.
-@app.get("/sqlalchemy")
-def testing_post(db: Session = Depends(get_db)):
-    return{"status":"success"}
+# imports the get_db method from the models.py file.
+# '/sqlalchemy' is an API specific route.
 
+# @app.get("/sqlalchemy")
+# # Dependency.
+# # db is a session.
+# def testing_post(db: Session = Depends(get_db)):
+#     # Create a session call. 
+#     posts = db.query(models.Post).all()
+#     return {"data": posts}
 
+ 
 # This block gets all the posts from the Postgre database.
 @app.get("/post")
 def user_post():
@@ -60,30 +61,46 @@ def user_post():
 
 
 # This block creates a new post.
-# payload in postman
-@app.post("/post", status_code=status.HTTP_201_CREATED)
-def create_post(new_post: Post):
-    cursor.execute(
-        "INSERT INTO product (title, content) VALUES (%s, %s) RETURNING *",
-        (new_post.title, new_post.content),
-    )
-    post01 = cursor.fetchone()
-    conn.commit()
-    return {"data": post01}
+# payload in postman 'raw' section using json.
 
+@app.post("/post", status_code=status.HTTP_201_CREATED)
+# Function to create post using ORM. This is the database connection call.
+def create_post(new_post: PostCreate, db: Session = Depends(get_db)):
+    
+    # cursor.execute(
+    #     "INSERT INTO product (title, content) VALUES (%s, %s) RETURNING *",
+    #     (new_post.title, new_post.content),
+    # )
+    # post01 = cursor.fetchone()
+    # conn.commit()
+    
+    # unpack the dictionary to match the schema automatically.
+    # print(**new_post.dict())
+    
+    post01 = models.Post(**new_post.dict())
+    db.add(post01)
+    # commit changes to the database.
+    db.commit()
+    # refresh the columns in the database.
+    db.refresh(post01)
+    return {"data": post01}
 
 
 # This block retrieves post with given 'id'.
 
-@app.post("/posts/{id}")
-def get_post(id: int):
+@app.get("/posts/{id}")
+# The database dependency.
+def get_post(id: int, db: Session = Depends(get_db)):
     try:
         #The , in this context is used to create a tuple with a single element (id,). 
         # It's a common syntax in Python to create a tuple with a single element. 
-        cursor.execute("SELECT * FROM product WHERE id = %s", (id,))
+        
+        # cursor.execute("SELECT * FROM product WHERE id = %s", (id,))
         # Fetch only one value.
-        test_post = cursor.fetchone()
-        print(test_post)
+        # test_post = cursor.fetchone()
+        
+        test_post = db.query(models.Post).filter(models.Post.id == id).first()
+        # print(test_post)
         # Raise the HTTP EXCEPTION ERROR.
         if not test_post:
             raise HTTPException(
@@ -94,7 +111,6 @@ def get_post(id: int):
     except Exception as e:
         conn.rollback()  # Rollback the transaction in case of an error
         raise e  # Re-raise the exception to be handled by FastAPI
-
 
 
 # In the context of database transactions, a rollback is an operation that undoes or cancels the changes made within a transaction. It restores the database to its previous state before the transaction began.
@@ -109,35 +125,55 @@ def get_post(id: int):
 
 
 
-# This block of code deletes a single post with an 'id'
-
+# This block of code 'delete' a single post with an 'id'
+# This is a delete operation.
 @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(id: int):
-    cursor.execute("SELECT * FROM product WHERE id = %s", (id,))
-    deleted_post = cursor.fetchone()
-    if deleted_post is None:
+# The database dependency into the path operation function.
+def delete_post(id: int, db: Session = Depends(get_db)):
+    
+    # cursor.execute("SELECT * FROM product WHERE id = %s", (id,))
+    # deleted_post = cursor.fetchone()
+    
+    deleted_post = db.query(models.Post).filter(models.Post.id == id)
+    
+    if deleted_post.first() is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with id: {id} does not exist")
-    cursor.execute("DELETE FROM product WHERE id = %s", (id,))
-    conn.commit()
+    
+    deleted_post.delete(synchronize_session = False)
+    
+    # cursor.execute("DELETE FROM product WHERE id = %s", (id,))
+    
+    db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+
+# This code block updates a single post with the given 'ID'.
 
 
 @app.put("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def update_post(id: int, post: Post):
-    cursor.execute("SELECT * FROM product WHERE id = %s", (id,))
-    existing_post = cursor.fetchone()
-    if existing_post is None:
+def update_post(id: int, updated_post: PostCreate, db: Session = Depends(get_db)):
+    
+    # cursor.execute("SELECT * FROM product WHERE id = %s", (id,))
+    # existing_post = cursor.fetchone()
+    
+    post_query = db. query(models.Post).filter(models.Post.id == id)
+    
+    post = post_query.first()
+    
+    if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Post with id: {id} does not exist")
 
-    if not post.title:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Title is required")
+    # if not post.title:
+    #     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Title is required")
 
-    if not post.content:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Content is required")
+    # if not post.content:
+    #     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Content is required")
 
-    cursor.execute(
-        "UPDATE product SET title = %s, content = %s, published = %s WHERE id = %s",
-        (post.title, post.content, post.published, id)
-    )
-    conn.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    # cursor.execute(
+    #     "UPDATE product SET title = %s, content = %s, published = %s WHERE id = %s",
+    #     (post.title, post.content, post.published, id))
+    
+    post_query.update(updated_post.dict(), synchronize_session=False)
+    db.commit()
+    return {"data": post_query.first()}

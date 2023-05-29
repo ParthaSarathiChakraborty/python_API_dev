@@ -10,12 +10,15 @@ SQL_ALCHEMY_CONNECTION= 'postgresql://parthasarathichakraborty:@localhost/fastap
 
 engine = create_engine(SQL_ALCHEMY_CONNECTION)
 
+# This makes the session.
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
 
 # Dependency
+# Create a session request for every specific API endpoint.
+
 def get_db():
     db = SessionLocal()
     try:
