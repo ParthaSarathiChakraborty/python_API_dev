@@ -1,4 +1,4 @@
-# This file will contain a bunch of utility functions.
+# This file will contain a bunch of utility logics/function.
 
 from passlib.context import CryptContext
 

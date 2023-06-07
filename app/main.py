@@ -3,6 +3,7 @@ import time
 from fastapi import FastAPI
 import psycopg2
 from psycopg2.extras import RealDictCursor
+
 from .routers import post, users, authentication
 
 # from other file import statements
@@ -39,9 +40,9 @@ app.include_router(post.router)
 app.include_router(users.router)
 app.include_router(authentication.router)
 
-# @app.get("/")
-# def read_root():
-#     return {"Hello": "Partha_Sarathi_Chakraborty"}
+@app.get("/")
+def read_root():
+    return {"Hello": "Partha_Sarathi_Chakraborty"}
  
 
 
