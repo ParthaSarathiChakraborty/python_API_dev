@@ -18,6 +18,21 @@ class PostBase(BaseModel):
 class PostCreate(PostBase):
     pass
 
+class PostBase(BaseModel):
+    title: str
+    content: str
+    published: bool = True
+
+# class PostCreate(PostBase):
+#     pass
+
+class PostResponse(PostBase):
+    id: int
+    created_at: Optional[datetime]
+
+    class Config:
+        orm_mode = True
+
 class CreateUser(BaseModel):
     email: EmailStr
     password: str
@@ -41,17 +56,6 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     id: Optional[str] = None
 
-class PostBase(BaseModel):
-    title: str
-    content: str
-    published: bool = True
 
-class PostCreate(PostBase):
-    pass
-
-class PostResponse(PostBase):
-    id: int
-    created_at: Optional[datetime]
-
-    class Config:
-        orm_mode = True
+        
+        

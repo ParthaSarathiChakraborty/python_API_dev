@@ -31,7 +31,9 @@ def user_post(db: Session = Depends(get_db)):
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model= PostResponse)
 # Function to create post using ORM. This is the database connection call.
 
-def create_post(new_post: PostCreate, db: Session = Depends(get_db), usrid: int = Depends(oauth2.get_current_user)):  
+def create_post(new_post: PostCreate, 
+                db: Session = Depends(get_db), 
+                usrid: int = Depends(oauth2.get_current_user)):  
     print(usrid)  
     
     post01 = models.Post(**new_post.dict())
@@ -41,7 +43,6 @@ def create_post(new_post: PostCreate, db: Session = Depends(get_db), usrid: int 
     
     # refresh the columns in the database.
     # db.refresh(post01)
-    
     return post01
 
 
